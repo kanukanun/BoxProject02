@@ -52,29 +52,36 @@ namespace _5.Classes
             camera.GetCameraAngle(out halfDiagonalAngle, out halfVerticalAngle, out halfHorizontalAngle);
 
             //view transformation
-            Vector3d vec_target = new Vector3d(camera.CameraTarget.X, camera.CameraTarget.Y, camera.CameraTarget.Z);
-            Matrix m1 = new Matrix(4, 4);
-            m1[0, 0] = camera.CameraX.X;
-            m1[1, 0] = camera.CameraX.Y;
-            m1[2, 0] = camera.CameraX.Z;
-            m1[3, 0] = Vector3d.Multiply(-vec_target, camera.CameraX);
-            m1[0, 1] = camera.CameraY.X;
-            m1[1, 1] = camera.CameraY.Y;
-            m1[2, 1] = camera.CameraY.Z;
-            m1[3, 1] = Vector3d.Multiply(-vec_target, camera.CameraY);
-            m1[0, 2] = camera.CameraZ.X;
-            m1[1, 2] = camera.CameraZ.Y;
-            m1[2, 2] = camera.CameraZ.Z;
-            m1[3, 2] = Vector3d.Multiply(-vec_target, camera.CameraZ);
+            Vector3d vec_location = new Vector3d(camera.CameraLocation.X, camera.CameraLocation.Y, camera.CameraLocation.Z);
+            double angle_1 = Vector3d.VectorAngle(Vector3d.YAxis, camera.CameraZ, Plane.WorldXY);
+            double angle_2 = Vector3d.VectorAngle(Vector3d.ZAxis, camera.CameraZ, Plane.WorldYZ);
+            
+            double[,] m1 = new double[4, 4];
+            m1[0, 0] = Math.Cos(angle_1);
+            m1[1, 0] = -Math.Sin(angle_1);
+            m1[0, 1] = Math.Sin(angle_1);
+            m1[1, 1] = Math.Cos(angle_1);
+            m1[2, 2] = 1;
             m1[3, 3] = 1;
 
-            for (int i = 0; i < m1.ColumnCount; i++)
-            {
-                for (int j = 0; j < m1.RowCount; j++)
-                {
-                    RhinoApp.WriteLine(String.Format("{}", m1[i, j]));
-                }
-            }
+            double[,] m2= new double[4, 4];
+            m2[0, 0] = 1;
+            m2[1, 1] = Math.Cos(angle_2);
+            m2[2, 1] = -Math.Sin(angle_2);
+            m2[1, 2] = Math.Sin(angle_2);
+            m2[2, 2] = Math.Cos(angle_2);
+            m2[3, 3] = 1;
+            
+            double[,] m3 = new double[4, 4];
+            m3[0, 0] = 1;
+            m3[3, 0] = -vec_location.X;
+            m3[1, 1] = 1;
+            m3[3, 1] = -vec_location.Y;
+            m3[2, 2] = 1;
+            m3[3, 2] = -vec_location.Z;
+            m3[3, 3] = 1;
+
+            
 
             //purojection transformation
             List<Point3d> pos_farrec = new List<Point3d>();
@@ -91,39 +98,54 @@ namespace _5.Classes
             double sy = 1 / Math.Tan(halfVerticalAngle / 2);
             double sx = sy / camera.FrustumAspect;
             double sz = dis_far / (dis_far - dis_near);
-            Matrix m2 = new Matrix(4 , 4);
+            //double[,] m2 = new double[4, 4];
 
-            m2[0, 0] = sx;
-            m2[1, 1] = sy;
-            m2[2, 2] = sz;
-            m2[3, 2] = -sz * dis_near;
-            m2[2, 3] = 1;
+            //m2[0, 0] = sx;
+            //m2[1, 1] = sy;
+            //m2[2, 2] = sz;
+            //m2[3, 2] = -sz * dis_near;
+            //m2[2, 3] = 1;
 
             //screen transformation
-            double w = camera.Size.Width / 2;
-            double h = camera.Size.Height / 2;
-            Matrix m3 = new Matrix(4, 4);
-
-            m2[0, 0] = w;
-            m2[3, 0] = w;
-            m2[1, 1] = -h;
-            m2[3, 1] = h;
-            m2[2, 2] = 1;
-            m2[3, 3] = 1;
+            //double w = camera.Size.Width / 2;
+            //double h = camera.Size.Height / 2;
+            //double[,] m3 = new double[4, 4];
+            //m3[0, 0] = w;
+            //m3[3, 0] = w;
+            //m3[1, 1] = -h;
+            //m3[3, 1] = h;
+            //m3[2, 2] = 1;
+            //m3[3, 3] = 1;
+            
 
             //point coordination
-            Matrix original_pos = new Matrix(0, 4);
-
+            double[,] original_pos = new double[1, 4];
             original_pos[0, 0] = world_position.X;
             original_pos[0, 1] = world_position.Y;
             original_pos[0, 2] = world_position.Z;
             original_pos[0, 3] = 1;
 
-            Matrix screen = original_pos * m1 * m2;
+            double[,] screen1 = multiplyMatrices(original_pos, m1);
+            double[,] screen2 = multiplyMatrices(screen1, m2);
+            double[,] screen3 = multiplyMatrices(screen2, m3);
 
-            Point3d pos_screen = new Point3d(screen[0, 0], screen[0, 1], screen[0, 2]);
+            Point3d pos_screen = new Point3d(screen3[0, 0], screen3[0, 1], screen3[0, 2]);
             return pos_screen;
             }
+
+        public static double[,] multiplyMatrices(double[,] x, double[,] y)
+        {
+            double[,] z = new double[1, 4];
+            for (int i = 0; i < 4; i++)
+            {
+                z[0, i] = 0;
+                for (int j = 0; j < 4; j++)
+                {
+                        z[0, i] += x[0, j] * y[j, i];
+                }
+            }
+            return z;
+        }
 
         public void Area()
         {
@@ -135,11 +157,12 @@ namespace _5.Classes
             camtarget.Add(new Point3d(camera.CameraLocation));
             Vector3d vec_height = Vector3d.Multiply(camera.Size.Height , camera.CameraY);
             camtarget.Add(Point3d.Add(camera.CameraTarget , vec_height));
-
-            //Point3d asdfg = CoordinateTransformation(100, 0, 0);
             
             //i revise the following sentences
-                clientpos.Add(CoordinateTransformation(corner[0]));
+            for (int i = 0; i < corner.Count; i++)
+            {
+                clientpos.Add(CoordinateTransformation(corner[i]));
+            }
 
             //for (int i = 0; i < clientpos3d.Count - 2; i++)//プロットした各点から３つ選択してできる三角形をすべて求める。
             //{
@@ -165,27 +188,27 @@ namespace _5.Classes
             vertex_rec.Add(new Point3d(0, 0, 0));
 
             enclose_view = Curve.CreateInterpolatedCurve(vertex_rec, 1);//画面の範囲を線で囲う
-            Curve enclose_box = Curve.CreateBooleanUnion(triangle_list)[0];//ボックスの面積を囲う
+            //Curve enclose_box = Curve.CreateBooleanUnion(triangle_list)[0];//ボックスの面積を囲う
+            //crv = Curve.CreateBooleanIntersection(enclose_box , enclose_view)[0];//画面上のボックスの範囲を求める。
             
-            crv = Curve.CreateBooleanIntersection(enclose_box , enclose_view)[0];//画面上のボックスの範囲を求める。
-            
-            double area_view = AreaMassProperties.Compute(enclose_view).Area; 
-            double area_intersec = AreaMassProperties.Compute(crv).Area;
-            RhinoApp.WriteLine(String.Format("{0}", area_view));
-            RhinoApp.WriteLine(String.Format("{0}", area_intersec));
-            double account = area_intersec / area_view * 100;
-            RhinoApp.WriteLine(String.Format("The box accounts for {0}% of viewport", account));
-           
-            
+            //double area_view = AreaMassProperties.Compute(enclose_view).Area; 
+            //double area_intersec = AreaMassProperties.Compute(crv).Area;
+            //RhinoApp.WriteLine(String.Format("{0}", area_view));
+            //RhinoApp.WriteLine(String.Format("{0}", area_intersec));
+            //double account = area_intersec / area_view * 100;
+            //RhinoApp.WriteLine(String.Format("The box accounts for {0}% of viewport", account));
         }
         
         public void Display(RhinoDoc _doc)
         {
             Brep objs = Brep.CreateFromBox(box);
             _doc.Objects.AddBrep(objs);
-
-            _doc.Objects.AddPoint(clientpos[0]);
-
+            for (int i = 0; i < clientpos.Count; i++)
+            {
+                _doc.Objects.AddPoint(clientpos[i]);
+            }
+            _doc.Objects.AddPoint(camera.CameraLocation);
+            _doc.Objects.AddPoint(camera.CameraTarget);
             _doc.Objects.AddCurve(crv);
             _doc.Objects.AddCurve(enclose_view);
         }
