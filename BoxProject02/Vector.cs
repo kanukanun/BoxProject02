@@ -93,7 +93,9 @@ namespace _5.Classes
             double halfDiagonalAngle, halfVerticalAngle, halfHorizontalAngle , nearDistance;
             camera.GetCameraAngle(out halfDiagonalAngle, out halfVerticalAngle, out halfHorizontalAngle);
 
-            //view transformation
+            ///////////////////////
+            //view transformation//
+            ///////////////////////
 
             Vector3d vec_norm = NormalVector(camera.CameraZ, Vector3d.ZAxis);
             double angle = VectorAngle(-Vector3d.ZAxis, camera.CameraZ);
@@ -112,7 +114,6 @@ namespace _5.Classes
 
             double[,] pos_cameralocation = MultiplyMatrices(PointToMatrix(camera.CameraLocation), m1);
             Vector3d vec_location = new Vector3d(pos_cameralocation[0, 0], pos_cameralocation[0, 1], pos_cameralocation[0, 2]);
-            RhinoApp.WriteLine(String.Format("{0}", vec_location));
 
             double[,] m2 = new double[4, 4];
             m2[0, 0] = 1;
@@ -123,32 +124,31 @@ namespace _5.Classes
             m2[3, 2] = -vec_location.Z;
             m2[3, 3] = 1;
             
-            
+            //////////////////////////////
+            //purojection transformation//
+            //////////////////////////////
 
-            
+            Plane planenear, planefar;
+            camera.GetFrustumNearPlane(out planenear);
+            camera.GetFrustumFarPlane(out planefar);
 
-            //purojection transformation
-            List<Point3d> pos_farrec = new List<Point3d>();
-            pos_farrec.Add(camera.GetFarRect()[1]);
-            pos_farrec.Add(camera.GetFarRect()[3]);
+            double dis_near = camera.CameraLocation.DistanceTo(planenear.Origin);
+            double dis_far = camera.CameraLocation.DistanceTo(planefar.Origin);
 
-            List<Point3d> pos_nearrec = new List<Point3d>();
-            pos_nearrec.Add(camera.GetNearRect()[1]);
-            pos_nearrec.Add(camera.GetNearRect()[3]);
+            //RhinoApp.WriteLine(String.Format("{0}", RhinoMath.ToDegrees(halfVerticalAngle)));
 
-            double dis_far = camera.CameraTarget.DistanceTo(Curve.CreateInterpolatedCurve(pos_farrec , 1).PointAt(0.5));
-            double dis_near = camera.CameraTarget.DistanceTo(Curve.CreateInterpolatedCurve(pos_nearrec, 1).PointAt(0.5));
-            
-            double sy = 1 / Math.Tan(halfVerticalAngle / 2);
-            double sx = sy / camera.FrustumAspect;
-            double sz = dis_far / (dis_far - dis_near);
-            //double[,] m2 = new double[4, 4];
+            double range = Math.Tan(halfVerticalAngle / 2) * dis_near;
+            double sy = dis_near / range;
+            double sx = (2 * dis_near) / (range * camera.FrustumAspect + range * camera.FrustumAspect);
+            double sz = -(dis_far + dis_near) / (dis_far - dis_near);
+            double pz = -(2 * dis_far * dis_near) / (dis_far - dis_near);
+            double[,] m3 = new double[4, 4];
 
-            //m2[0, 0] = sx;
-            //m2[1, 1] = sy;
-            //m2[2, 2] = sz;
-            //m2[3, 2] = -sz * dis_near;
-            //m2[2, 3] = 1;
+            m3[0, 0] = sx;
+            m3[1, 1] = -sy;
+            m3[2, 2] = sz;
+            m3[3, 2] = pz;
+            m3[2, 3] = -1;
 
             //screen transformation
             //double w = camera.Size.Width / 2;
@@ -167,9 +167,13 @@ namespace _5.Classes
 
             double[,] screen1 = MultiplyMatrices(PointToMatrix(world_position), m1);
             double[,] screen2 = MultiplyMatrices(screen1, m2);
-            //double[,] screen3 = multiplyMatrices(screen2, m3);
+            
+            double[,] screen3 = MultiplyMatrices(screen2, m3);
 
-            Point3d pos_screen = new Point3d(screen2[0, 0], screen2[0, 1], screen2[0, 2]);
+            RhinoApp.WriteLine(String.Format("{0}", m2[0, 1]));
+            RhinoApp.WriteLine(String.Format("{0}", m3[0, 1]));
+
+            Point3d pos_screen = new Point3d(screen3[0, 0], screen3[0, 1], screen3[0, 2]);
             return pos_screen;
             }
 
@@ -247,6 +251,18 @@ namespace _5.Classes
             {
                 _doc.Objects.AddPoint(clientpos[i]);
             }
+            //for (int i = 0; i < 4; i++)
+            //{
+            //    _doc.Objects.AddPoint(camera.GetFarRect()[i]);
+            //}
+            //for (int i = 0; i < 4; i++)
+            //{
+            //    _doc.Objects.AddPoint(camera.GetNearRect()[i]);
+            //}
+
+            _doc.Objects.AddCurve(Curve.CreateInterpolatedCurve(camera.GetFarRect(), 1));
+            _doc.Objects.AddCurve(Curve.CreateInterpolatedCurve(camera.GetNearRect(), 1));
+
             _doc.Objects.AddPoint(camera.CameraLocation);
             _doc.Objects.AddPoint(camera.CameraTarget);
             _doc.Objects.AddCurve(crv);
