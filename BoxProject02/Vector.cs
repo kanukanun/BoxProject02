@@ -46,6 +46,22 @@ namespace _5.Classes
             corner.AddRange(box.GetCorners());
         }
 
+        private Vector3d NormalVector(Vector3d v1, Vector3d v2)
+        {
+            double ax, ay, az, bx, by, bz;
+            Vector3d normvec;
+
+            ax = v1.X;
+            ay = v1.Y;
+            az = v1.Z;
+            bx = v2.X;
+            by = v2.Y;
+            bz = v2.Z;
+
+            normvec = new Vector3d(ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx);
+            return normvec;
+        }
+
         public Point3d CoordinateTransformation(Point3d world_position)
         {
             double halfDiagonalAngle, halfVerticalAngle, halfHorizontalAngle , nearDistance;
@@ -53,33 +69,51 @@ namespace _5.Classes
 
             //view transformation
             Vector3d vec_location = new Vector3d(camera.CameraLocation.X, camera.CameraLocation.Y, camera.CameraLocation.Z);
-            double angle_1 = Vector3d.VectorAngle(Vector3d.YAxis, camera.CameraZ, Plane.WorldXY);
-            double angle_2 = Vector3d.VectorAngle(Vector3d.ZAxis, camera.CameraZ, Plane.WorldYZ);
-            
+            double angle_1 = Vector3d.VectorAngle(Vector3d.ZAxis, camera.CameraZ, Plane.WorldZX);
+            double angle_2 = Vector3d.VectorAngle(-Vector3d.ZAxis, camera.CameraZ, Plane.WorldYZ);
+
             double[,] m1 = new double[4, 4];
-            m1[0, 0] = Math.Cos(angle_1);
-            m1[1, 0] = -Math.Sin(angle_1);
-            m1[0, 1] = Math.Sin(angle_1);
-            m1[1, 1] = Math.Cos(angle_1);
+            m1[0, 0] = 1;
+            m1[3, 0] = -vec_location.X;
+            m1[1, 1] = 1;
+            m1[3, 1] = -vec_location.Y;
             m1[2, 2] = 1;
+            m1[3, 2] = -vec_location.Z;
             m1[3, 3] = 1;
 
-            double[,] m2= new double[4, 4];
+            double[,] m2 = new double[4, 4];
             m2[0, 0] = 1;
             m2[1, 1] = Math.Cos(angle_2);
-            m2[2, 1] = -Math.Sin(angle_2);
-            m2[1, 2] = Math.Sin(angle_2);
+            m2[2, 1] = Math.Sin(angle_2);
+            m2[1, 2] = -Math.Sin(angle_2);
             m2[2, 2] = Math.Cos(angle_2);
             m2[3, 3] = 1;
+
             
+
             double[,] m3 = new double[4, 4];
-            m3[0, 0] = 1;
-            m3[3, 0] = -vec_location.X;
+            m3[0, 0] = Math.Cos(angle_1);
+            m3[2, 0] = -Math.Sin(angle_1);
+            m3[0, 2] = Math.Sin(angle_1);
+            m3[2, 2] = Math.Cos(angle_1);
             m3[1, 1] = 1;
-            m3[3, 1] = -vec_location.Y;
-            m3[2, 2] = 1;
-            m3[3, 2] = -vec_location.Z;
             m3[3, 3] = 1;
+
+            
+
+
+            //double[,] m3 = new double[4, 4];
+            //m3[0, 0] = 1;
+            //m3[1, 1] = 1;
+            //m3[2, 2] = 1;
+            //m3[3, 3] = 1;
+            //double[,] m2 = new double[4, 4];
+            //m2[0, 0] = 1;
+            //m2[1, 1] = 1;
+            //m2[2, 2] = 1;
+            //m2[3, 3] = 1;
+            
+            
 
             
 
