@@ -59,7 +59,33 @@ namespace _5.Classes
             bz = v2.Z;
 
             normvec = new Vector3d(ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx);
-            return normvec;
+            return normvec / normvec.Length;
+        }
+
+        public double VectorAngle(Vector3d v1, Vector3d v2)
+        {
+            double cx, cy, cz, dx, dy, dz, angle;
+
+            cx = v1.X;
+            cy = v1.Y;
+            cz = v1.Z;
+            dx = v2.X;
+            dy = v2.Y;
+            dz = v2.Z;
+
+            angle = Math.Acos((cx * dx + cy * dy + cz * dz) / (v1.Length * v2.Length));
+            return angle;
+        }
+
+        public double[,] PointToMatrix(Point3d point)
+        {
+            double[,] original_pos = new double[1, 4];
+            original_pos[0, 0] = point.X;
+            original_pos[0, 1] = point.Y;
+            original_pos[0, 2] = point.Z;
+            original_pos[0, 3] = 1;
+
+            return original_pos;
         }
 
         public Point3d CoordinateTransformation(Point3d world_position)
@@ -68,50 +94,34 @@ namespace _5.Classes
             camera.GetCameraAngle(out halfDiagonalAngle, out halfVerticalAngle, out halfHorizontalAngle);
 
             //view transformation
-            Vector3d vec_location = new Vector3d(camera.CameraLocation.X, camera.CameraLocation.Y, camera.CameraLocation.Z);
-            double angle_1 = Vector3d.VectorAngle(Vector3d.ZAxis, camera.CameraZ, Plane.WorldZX);
-            double angle_2 = Vector3d.VectorAngle(-Vector3d.ZAxis, camera.CameraZ, Plane.WorldYZ);
+
+            Vector3d vec_norm = NormalVector(camera.CameraZ, Vector3d.ZAxis);
+            double angle = VectorAngle(-Vector3d.ZAxis, camera.CameraZ);
 
             double[,] m1 = new double[4, 4];
-            m1[0, 0] = 1;
-            m1[3, 0] = -vec_location.X;
-            m1[1, 1] = 1;
-            m1[3, 1] = -vec_location.Y;
-            m1[2, 2] = 1;
-            m1[3, 2] = -vec_location.Z;
+            m1[0, 0] = vec_norm.X * vec_norm.X * (1 - Math.Cos(angle)) + Math.Cos(angle);
+            m1[1, 0] = vec_norm.X * vec_norm.Y * (1 - Math.Cos(angle)) + vec_norm.Z * Math.Sin(angle);
+            m1[2, 0] = vec_norm.Z * vec_norm.X * (1 - Math.Cos(angle)) - vec_norm.Y * Math.Sin(angle);
+            m1[0, 1] = vec_norm.X * vec_norm.Y * (1 - Math.Cos(angle)) - vec_norm.Z * Math.Sin(angle);
+            m1[1, 1] = vec_norm.Y * vec_norm.Y * (1 - Math.Cos(angle)) + Math.Cos(angle);
+            m1[2, 1] = vec_norm.Y * vec_norm.Z * (1 - Math.Cos(angle)) + vec_norm.X * Math.Sin(angle);
+            m1[0, 2] = vec_norm.Z * vec_norm.X * (1 - Math.Cos(angle)) + vec_norm.Y * Math.Sin(angle);
+            m1[1, 2] = vec_norm.Y * vec_norm.Z * (1 - Math.Cos(angle)) - vec_norm.X * Math.Sin(angle);
+            m1[2, 2] = vec_norm.Z * vec_norm.Z * (1 - Math.Cos(angle)) + Math.Cos(angle);
             m1[3, 3] = 1;
+
+            double[,] pos_cameralocation = MultiplyMatrices(PointToMatrix(camera.CameraLocation), m1);
+            Vector3d vec_location = new Vector3d(pos_cameralocation[0, 0], pos_cameralocation[0, 1], pos_cameralocation[0, 2]);
+            RhinoApp.WriteLine(String.Format("{0}", vec_location));
 
             double[,] m2 = new double[4, 4];
             m2[0, 0] = 1;
-            m2[1, 1] = Math.Cos(angle_2);
-            m2[2, 1] = Math.Sin(angle_2);
-            m2[1, 2] = -Math.Sin(angle_2);
-            m2[2, 2] = Math.Cos(angle_2);
+            m2[1, 1] = 1;
+            m2[2, 2] = 1;
+            m2[3, 0] = -vec_location.X;
+            m2[3, 1] = -vec_location.Y;
+            m2[3, 2] = -vec_location.Z;
             m2[3, 3] = 1;
-
-            
-
-            double[,] m3 = new double[4, 4];
-            m3[0, 0] = Math.Cos(angle_1);
-            m3[2, 0] = -Math.Sin(angle_1);
-            m3[0, 2] = Math.Sin(angle_1);
-            m3[2, 2] = Math.Cos(angle_1);
-            m3[1, 1] = 1;
-            m3[3, 3] = 1;
-
-            
-
-
-            //double[,] m3 = new double[4, 4];
-            //m3[0, 0] = 1;
-            //m3[1, 1] = 1;
-            //m3[2, 2] = 1;
-            //m3[3, 3] = 1;
-            //double[,] m2 = new double[4, 4];
-            //m2[0, 0] = 1;
-            //m2[1, 1] = 1;
-            //m2[2, 2] = 1;
-            //m2[3, 3] = 1;
             
             
 
@@ -153,21 +163,17 @@ namespace _5.Classes
             
 
             //point coordination
-            double[,] original_pos = new double[1, 4];
-            original_pos[0, 0] = world_position.X;
-            original_pos[0, 1] = world_position.Y;
-            original_pos[0, 2] = world_position.Z;
-            original_pos[0, 3] = 1;
+            
 
-            double[,] screen1 = multiplyMatrices(original_pos, m1);
-            double[,] screen2 = multiplyMatrices(screen1, m2);
-            double[,] screen3 = multiplyMatrices(screen2, m3);
+            double[,] screen1 = MultiplyMatrices(PointToMatrix(world_position), m1);
+            double[,] screen2 = MultiplyMatrices(screen1, m2);
+            //double[,] screen3 = multiplyMatrices(screen2, m3);
 
-            Point3d pos_screen = new Point3d(screen3[0, 0], screen3[0, 1], screen3[0, 2]);
+            Point3d pos_screen = new Point3d(screen2[0, 0], screen2[0, 1], screen2[0, 2]);
             return pos_screen;
             }
 
-        public static double[,] multiplyMatrices(double[,] x, double[,] y)
+        public static double[,] MultiplyMatrices(double[,] x, double[,] y)
         {
             double[,] z = new double[1, 4];
             for (int i = 0; i < 4; i++)
