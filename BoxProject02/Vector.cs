@@ -153,6 +153,7 @@ namespace _5.Classes
 
             Vector3d vec_norm = NormalVector(camera.CameraZ, Vector3d.ZAxis);
             double angle = VectorAngle(-Vector3d.ZAxis, camera.CameraZ);
+            double angle2 = VectorAngle(camera.CameraX, Vector3d.XAxis);
 
             double[,] m1 = new double[4, 4];
             m1[0, 0] = vec_norm.X * vec_norm.X * (1 - Math.Cos(angle)) + Math.Cos(angle);
@@ -166,20 +167,29 @@ namespace _5.Classes
             m1[2, 2] = vec_norm.Z * vec_norm.Z * (1 - Math.Cos(angle)) + Math.Cos(angle);
             m1[3, 3] = 1;
 
-            double[,] pos_cameralocation = MultiplyMatrices(PointToMatrix(camera.CameraLocation), m1);
+            double[,] m2 = new double[4, 4];
+            m2[0, 0] = Math.Cos(angle2);
+            m2[1, 0] = Math.Sin(angle2);
+            m2[0, 1] = -Math.Sin(angle2);
+            m2[1, 1] = Math.Cos(angle2);
+            m2[2, 2] = 1;
+            m2[3, 3] = 1;
+
+            double[,] pos_cameralocation = MultiplyMatrices(MultiplyMatrices(PointToMatrix(camera.CameraLocation), m1), m2);
             Vector3d vec_location = new Vector3d(pos_cameralocation[0, 0], pos_cameralocation[0, 1], pos_cameralocation[0, 2]);
 
-            double[,] m2 = new double[4, 4];
-            m2[0, 0] = 1;
-            m2[1, 1] = 1;
-            m2[2, 2] = 1;
-            m2[3, 0] = -vec_location.X;
-            m2[3, 1] = -vec_location.Y;
-            m2[3, 2] = -vec_location.Z;
-            m2[3, 3] = 1;
+            double[,] m3 = new double[4, 4];
+            m3[0, 0] = 1;
+            m3[1, 1] = 1;
+            m3[2, 2] = 1;
+            m3[3, 0] = -vec_location.X;
+            m3[3, 1] = -vec_location.Y;
+            m3[3, 2] = -vec_location.Z;
+            m3[3, 3] = 1;
 
             double[,] screen1 = MultiplyMatrices(PointToMatrix(world_position), m1);
             double[,] screen2 = MultiplyMatrices(screen1, m2);
+            double[,] screen3 = MultiplyMatrices(screen2, m3);
             
             //////////////////////////////
             //purojection transformation//
@@ -192,63 +202,51 @@ namespace _5.Classes
             double dis_near = camera.CameraLocation.DistanceTo(planenear.Origin);
             double dis_far = camera.CameraLocation.DistanceTo(planefar.Origin);
 
-            //RhinoApp.WriteLine(String.Format("{0}", RhinoMath.ToDegrees(halfVerticalAngle)));
-
-            //double range = Math.Tan(halfVerticalAngle / 2) * dis_near;
-            //double sy = dis_near / range;
-            //double sx = (2 * dis_near) / (range * camera.FrustumAspect + range * camera.FrustumAspect);
-            //double sz = -(dis_far + dis_near) / (dis_far - dis_near);
-            //double pz = -(2 * dis_far * dis_near) / (dis_far - dis_near);
-
 
             double direction_y = 1;
             double direction_x = 1;
-            if (screen2[0, 1] < 0)
+            if (screen3[0, 1] < 0)
             {
                 direction_y = -1; 
             }
 
-            if (screen2[0, 0] < 0)
+            if (screen3[0, 0] < 0)
             {
                 direction_x = -1;
             }
             
-            double angle_y = VectorAngle(Vector3d.ZAxis, new Vector3d(0, screen2[0, 1], screen2[0, 2]));
-            double angle_x = VectorAngle(Vector3d.ZAxis, new Vector3d(screen2[0, 0], 0, screen2[0, 2]));
-            double sy = 1 - direction_y * ((screen2[0, 2] - dis_near) * Math.Tan(angle_y)) / screen2[0, 1];
-            double sx = 1 - direction_x * ((screen2[0, 2] - dis_near) * Math.Tan(angle_x)) / screen2[0, 0];
-            double sz = 1 - (dis_near / screen2[0, 2]);
+            double angle_y = VectorAngle(Vector3d.ZAxis, new Vector3d(0, screen3[0, 1], screen3[0, 2]));
+            double angle_x = VectorAngle(Vector3d.ZAxis, new Vector3d(screen3[0, 0], 0, screen3[0, 2]));
+            double sy = 1 - direction_y * ((screen3[0, 2] - dis_near) * Math.Tan(angle_y)) / screen3[0, 1];
+            double sx = 1 - direction_x * ((screen3[0, 2] - dis_near) * Math.Tan(angle_x)) / screen3[0, 0];
 
-            double[,] m3 = new double[4, 4];
+            double[,] m4 = new double[4, 4];
 
-            m3[0, 0] = sx;
-            m3[1, 1] = sy;
-            m3[2, 2] = sz;
-            m3[3, 3] = 1;
+            m4[0, 0] = sx;
+            m4[1, 1] = sy;
+            m4[2, 2] = 0;
+            m4[3, 3] = 1;
 
-            double[,] screen3 = MultiplyMatrices(screen2, m3);
+            double[,] screen4 = MultiplyMatrices(screen3, m4);
 
+            /////////////////////////
+            //screen transformation//
+            /////////////////////////
 
-            //screen transformation
-            //double w = camera.Size.Width / 2;
-            //double h = camera.Size.Height / 2;
-            //double[,] m3 = new double[4, 4];
-            //m3[0, 0] = w;
-            //m3[3, 0] = w;
-            //m3[1, 1] = -h;
-            //m3[3, 1] = h;
-            //m3[2, 2] = 1;
-            //m3[3, 3] = 1;
-            
+            double[,] m5 = new double[4, 4];
 
-            //point 
-            
-            
+            List<Point3d> nearrec = new List<Point3d>();
+            nearrec.AddRange(camera.GetNearRect());
+            double sx5 = camera.Size.Width / nearrec[0].DistanceTo(nearrec[1]);
+            double sy5 = camera.Size.Height / nearrec[0].DistanceTo(nearrec[2]);
 
-            RhinoApp.WriteLine(String.Format("{0}", m2[0, 1]));
-            RhinoApp.WriteLine(String.Format("{0}", m3[0, 1]));
+            m5[0, 0] = sx5;
+            m5[1, 1] = sy5;
+            m5[3, 3] = 1;
 
-            Point3d pos_screen = new Point3d(screen3[0, 0], screen3[0, 1], screen3[0, 2]);
+            double[,] screen5 = MultiplyMatrices(screen4, m5);
+
+            Point3d pos_screen = new Point3d(screen5[0, 0], screen5[0, 1], screen5[0, 2]);
             return pos_screen;
             }
 
@@ -268,88 +266,61 @@ namespace _5.Classes
 
         public void Area()
         {
-            List<Point3d> vertex = new List<Point3d>(3);
-            List<Point3d> vertex_rec = new List<Point3d>();
+            List<Point3d> vertex = new List<Point3d>(3);//box cornear
+            List<Point3d> vertex_rec = new List<Point3d>();//viewrec
             List<Curve> triangle_list = new List<Curve>();
 
-            camtarget.Add(new Point3d(camera.CameraTarget));
-            camtarget.Add(new Point3d(camera.CameraLocation));
-            Vector3d vec_height = Vector3d.Multiply(camera.Size.Height , camera.CameraY);
-            camtarget.Add(Point3d.Add(camera.CameraTarget , vec_height));
-            
+            List<Point3d> pos_viewcorner = new List<Point3d>();
+            pos_viewcorner.AddRange(camera.GetNearRect());
+            pos_viewcorner.Reverse(2, 2);
+            pos_viewcorner.Add(pos_viewcorner[0]);
+
             //i revise the following sentences
             for (int i = 0; i < corner.Count; i++)
             {
                 clientpos.Add(CoordinateTransformation(corner[i]));
             }
 
-            for (int i = 0; i < corner.Count; i++)
+            for (int i = 0; i < pos_viewcorner.Count; i++)
             {
-                clientpos1.Add(CoordinateTransformation1(corner[i]));
+                vertex_rec.Add(CoordinateTransformation(pos_viewcorner[i]));
             }
 
-            //for (int i = 0; i < clientpos3d.Count - 2; i++)//プロットした各点から３つ選択してできる三角形をすべて求める。
-            //{
-            //    vertex.Clear();
-            //    vertex.Add(clientpos3d[i]);
-            //    vertex.Add(clientpos3d[i + 1]);
+            for (int i = 0; i < clientpos.Count - 2; i++)//プロットした各点から３つ選択してできる三角形をすべて求める。
+            {
+                vertex.Clear();
+                vertex.Add(clientpos[i]);
+                vertex.Add(clientpos[i + 1]);
 
-            //    for (int j = i + 2; j < clientpos3d.Count; j++)
-            //    {
-            //        vertex.Add(clientpos3d[j]);
-            //        vertex.Add(clientpos3d[i]);
-            //        triangle_list.Add(Curve.CreateInterpolatedCurve(vertex, 1));
-            //        vertex.RemoveAt(3);
-            //        vertex.RemoveAt(2);
-            //    }
-            //}
-
-            //client veiwを2D平面上へプロットする。
-            vertex_rec.Add(new Point3d(0 , 0 , 0));
-            vertex_rec.Add(new Point3d(camera.Size.Width , 0 , 0));
-            vertex_rec.Add(new Point3d(camera.Size.Width, camera.Size.Height, 0));
-            vertex_rec.Add(new Point3d(0 , camera.Size.Height, 0));
-            vertex_rec.Add(new Point3d(0, 0, 0));
+                for (int j = i + 2; j < clientpos.Count; j++)
+                {
+                    vertex.Add(clientpos[j]);
+                    vertex.Add(clientpos[i]);
+                    triangle_list.Add(Curve.CreateInterpolatedCurve(vertex, 1));
+                    vertex.RemoveAt(3);
+                    vertex.RemoveAt(2);
+                }
+            }
 
             enclose_view = Curve.CreateInterpolatedCurve(vertex_rec, 1);//画面の範囲を線で囲う
-            //Curve enclose_box = Curve.CreateBooleanUnion(triangle_list)[0];//ボックスの面積を囲う
-            //crv = Curve.CreateBooleanIntersection(enclose_box , enclose_view)[0];//画面上のボックスの範囲を求める。
-            
-            //double area_view = AreaMassProperties.Compute(enclose_view).Area; 
-            //double area_intersec = AreaMassProperties.Compute(crv).Area;
-            //RhinoApp.WriteLine(String.Format("{0}", area_view));
-            //RhinoApp.WriteLine(String.Format("{0}", area_intersec));
-            //double account = area_intersec / area_view * 100;
-            //RhinoApp.WriteLine(String.Format("The box accounts for {0}% of viewport", account));
+            Curve enclose_box = Curve.CreateBooleanUnion(triangle_list)[0];//ボックスの面積を囲う
+            crv = Curve.CreateBooleanIntersection(enclose_box , enclose_view)[0];//画面上のボックスの範囲を求める。
+
+            double area_view = AreaMassProperties.Compute(enclose_view).Area;
+            double area_intersec = AreaMassProperties.Compute(crv).Area;
+            double account = area_intersec / area_view * 100;
+            RhinoApp.WriteLine(String.Format("The box accounts for {0}% of viewport", account));
         }
         
         public void Display(RhinoDoc _doc)
         {
             Brep objs = Brep.CreateFromBox(box);
             _doc.Objects.AddBrep(objs);
-            //for (int i = 0; i < clientpos.Count; i++)
-            //{
-            //    _doc.Objects.AddPoint(clientpos[i]);
-            //}
-
             for (int i = 0; i < clientpos.Count; i++)
             {
-                _doc.Objects.AddPoint(clientpos1[i]);
+                _doc.Objects.AddPoint(clientpos[i]);
             }
-            //for (int i = 0; i < 4; i++)
-            //{
-            //    _doc.Objects.AddPoint(camera.GetFarRect()[i]);
-            //}
-            //for (int i = 0; i < 4; i++)
-            //{
-            //    _doc.Objects.AddPoint(camera.GetNearRect()[i]);
-            //}
 
-            //_doc.Objects.AddCurve(Curve.CreateInterpolatedCurve(camera.GetFarRect(), 1));
-            //_doc.Objects.AddCurve(Curve.CreateInterpolatedCurve(camera.GetNearRect(), 1));
-
-            _doc.Objects.AddPoint(camera.CameraLocation);
-            _doc.Objects.AddPoint(camera.CameraTarget);
             _doc.Objects.AddCurve(crv);
             _doc.Objects.AddCurve(enclose_view);
         }
