@@ -19,6 +19,7 @@ namespace _5.Classes
 
         private List<Point3d> corner = new List<Point3d>();
         private List<Point3d> clientpos = new List<Point3d>();//ワールド座標からクライアント座標に変換した3Dポイント
+        private List<Point3d> clientpos1 = new List<Point3d>();
 
         private Curve crv;
         private Curve enclose_view;
@@ -87,6 +88,59 @@ namespace _5.Classes
 
             return original_pos;
         }
+        public Point3d CoordinateTransformation1(Point3d world_position)
+        {
+            double halfDiagonalAngle, halfVerticalAngle, halfHorizontalAngle, nearDistance;
+            camera.GetCameraAngle(out halfDiagonalAngle, out halfVerticalAngle, out halfHorizontalAngle);
+
+            ///////////////////////
+            //view transformation//
+            ///////////////////////
+
+            Vector3d vec_norm = NormalVector(camera.CameraZ, Vector3d.ZAxis);
+            double angle = VectorAngle(-Vector3d.ZAxis, camera.CameraZ);
+            double angle2 = VectorAngle(camera.CameraX, Vector3d.XAxis);
+
+            double[,] m1 = new double[4, 4];
+            m1[0, 0] = vec_norm.X * vec_norm.X * (1 - Math.Cos(angle)) + Math.Cos(angle);
+            m1[1, 0] = vec_norm.X * vec_norm.Y * (1 - Math.Cos(angle)) + vec_norm.Z * Math.Sin(angle);
+            m1[2, 0] = vec_norm.Z * vec_norm.X * (1 - Math.Cos(angle)) - vec_norm.Y * Math.Sin(angle);
+            m1[0, 1] = vec_norm.X * vec_norm.Y * (1 - Math.Cos(angle)) - vec_norm.Z * Math.Sin(angle);
+            m1[1, 1] = vec_norm.Y * vec_norm.Y * (1 - Math.Cos(angle)) + Math.Cos(angle);
+            m1[2, 1] = vec_norm.Y * vec_norm.Z * (1 - Math.Cos(angle)) + vec_norm.X * Math.Sin(angle);
+            m1[0, 2] = vec_norm.Z * vec_norm.X * (1 - Math.Cos(angle)) + vec_norm.Y * Math.Sin(angle);
+            m1[1, 2] = vec_norm.Y * vec_norm.Z * (1 - Math.Cos(angle)) - vec_norm.X * Math.Sin(angle);
+            m1[2, 2] = vec_norm.Z * vec_norm.Z * (1 - Math.Cos(angle)) + Math.Cos(angle);
+            m1[3, 3] = 1;
+
+            double[,] m2 = new double[4, 4];
+            m2[0, 0] = Math.Cos(angle2);
+            m2[1, 0] = Math.Sin(angle2);
+            m2[0, 1] = -Math.Sin(angle2);
+            m2[1, 1] = Math.Cos(angle2);
+            m2[2, 2] = 1;
+            m2[3, 3] = 1;
+
+            double[,] pos_cameralocation = MultiplyMatrices(MultiplyMatrices(PointToMatrix(camera.CameraLocation), m1), m2);
+            Vector3d vec_location = new Vector3d(pos_cameralocation[0, 0], pos_cameralocation[0, 1], pos_cameralocation[0, 2]);
+
+            double[,] m3 = new double[4, 4];
+            m3[0, 0] = 1;
+            m3[1, 1] = 1;
+            m3[2, 2] = 1;
+            m3[3, 0] = -vec_location.X;
+            m3[3, 1] = -vec_location.Y;
+            m3[3, 2] = -vec_location.Z;
+            m3[3, 3] = 1;
+
+            double[,] screen1 = MultiplyMatrices(PointToMatrix(world_position), m1);
+            double[,] screen2 = MultiplyMatrices(screen1, m2);
+            double[,] screen3 = MultiplyMatrices(screen2, m3);
+
+
+            Point3d pos_screen = new Point3d(screen3[0, 0], screen3[0, 1], screen3[0, 2]);
+            return pos_screen;
+        }
 
         public Point3d CoordinateTransformation(Point3d world_position)
         {
@@ -123,6 +177,9 @@ namespace _5.Classes
             m2[3, 1] = -vec_location.Y;
             m2[3, 2] = -vec_location.Z;
             m2[3, 3] = 1;
+
+            double[,] screen1 = MultiplyMatrices(PointToMatrix(world_position), m1);
+            double[,] screen2 = MultiplyMatrices(screen1, m2);
             
             //////////////////////////////
             //purojection transformation//
@@ -137,18 +194,40 @@ namespace _5.Classes
 
             //RhinoApp.WriteLine(String.Format("{0}", RhinoMath.ToDegrees(halfVerticalAngle)));
 
-            double range = Math.Tan(halfVerticalAngle / 2) * dis_near;
-            double sy = dis_near / range;
-            double sx = (2 * dis_near) / (range * camera.FrustumAspect + range * camera.FrustumAspect);
-            double sz = -(dis_far + dis_near) / (dis_far - dis_near);
-            double pz = -(2 * dis_far * dis_near) / (dis_far - dis_near);
+            //double range = Math.Tan(halfVerticalAngle / 2) * dis_near;
+            //double sy = dis_near / range;
+            //double sx = (2 * dis_near) / (range * camera.FrustumAspect + range * camera.FrustumAspect);
+            //double sz = -(dis_far + dis_near) / (dis_far - dis_near);
+            //double pz = -(2 * dis_far * dis_near) / (dis_far - dis_near);
+
+
+            double direction_y = 1;
+            double direction_x = 1;
+            if (screen2[0, 1] < 0)
+            {
+                direction_y = -1; 
+            }
+
+            if (screen2[0, 0] < 0)
+            {
+                direction_x = -1;
+            }
+            
+            double angle_y = VectorAngle(Vector3d.ZAxis, new Vector3d(0, screen2[0, 1], screen2[0, 2]));
+            double angle_x = VectorAngle(Vector3d.ZAxis, new Vector3d(screen2[0, 0], 0, screen2[0, 2]));
+            double sy = 1 - direction_y * ((screen2[0, 2] - dis_near) * Math.Tan(angle_y)) / screen2[0, 1];
+            double sx = 1 - direction_x * ((screen2[0, 2] - dis_near) * Math.Tan(angle_x)) / screen2[0, 0];
+            double sz = 1 - (dis_near / screen2[0, 2]);
+
             double[,] m3 = new double[4, 4];
 
             m3[0, 0] = sx;
-            m3[1, 1] = -sy;
+            m3[1, 1] = sy;
             m3[2, 2] = sz;
-            m3[3, 2] = pz;
-            m3[2, 3] = -1;
+            m3[3, 3] = 1;
+
+            double[,] screen3 = MultiplyMatrices(screen2, m3);
+
 
             //screen transformation
             //double w = camera.Size.Width / 2;
@@ -162,13 +241,9 @@ namespace _5.Classes
             //m3[3, 3] = 1;
             
 
-            //point coordination
+            //point 
             
-
-            double[,] screen1 = MultiplyMatrices(PointToMatrix(world_position), m1);
-            double[,] screen2 = MultiplyMatrices(screen1, m2);
             
-            double[,] screen3 = MultiplyMatrices(screen2, m3);
 
             RhinoApp.WriteLine(String.Format("{0}", m2[0, 1]));
             RhinoApp.WriteLine(String.Format("{0}", m3[0, 1]));
@@ -206,6 +281,11 @@ namespace _5.Classes
             for (int i = 0; i < corner.Count; i++)
             {
                 clientpos.Add(CoordinateTransformation(corner[i]));
+            }
+
+            for (int i = 0; i < corner.Count; i++)
+            {
+                clientpos1.Add(CoordinateTransformation1(corner[i]));
             }
 
             //for (int i = 0; i < clientpos3d.Count - 2; i++)//プロットした各点から３つ選択してできる三角形をすべて求める。
@@ -247,9 +327,14 @@ namespace _5.Classes
         {
             Brep objs = Brep.CreateFromBox(box);
             _doc.Objects.AddBrep(objs);
+            //for (int i = 0; i < clientpos.Count; i++)
+            //{
+            //    _doc.Objects.AddPoint(clientpos[i]);
+            //}
+
             for (int i = 0; i < clientpos.Count; i++)
             {
-                _doc.Objects.AddPoint(clientpos[i]);
+                _doc.Objects.AddPoint(clientpos1[i]);
             }
             //for (int i = 0; i < 4; i++)
             //{
@@ -260,8 +345,8 @@ namespace _5.Classes
             //    _doc.Objects.AddPoint(camera.GetNearRect()[i]);
             //}
 
-            _doc.Objects.AddCurve(Curve.CreateInterpolatedCurve(camera.GetFarRect(), 1));
-            _doc.Objects.AddCurve(Curve.CreateInterpolatedCurve(camera.GetNearRect(), 1));
+            //_doc.Objects.AddCurve(Curve.CreateInterpolatedCurve(camera.GetFarRect(), 1));
+            //_doc.Objects.AddCurve(Curve.CreateInterpolatedCurve(camera.GetNearRect(), 1));
 
             _doc.Objects.AddPoint(camera.CameraLocation);
             _doc.Objects.AddPoint(camera.CameraTarget);
